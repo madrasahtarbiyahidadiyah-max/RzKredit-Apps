@@ -1,0 +1,6 @@
+{
+  "name": "RzKredit",
+  "description": "Sistem Portal Admin dan Manajemen Pembayaran RzKredit Mobile",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
