@@ -21,6 +21,10 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    # Langkah baru: Membuat file gradlew secara otomatis menggunakan Gradle bawaan server
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
