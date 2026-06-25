@@ -41,4 +41,7 @@ interface HistorySetoranDao {
 
     @Query("DELETE FROM history_setoran WHERE LOWER(TRIM(namaDebitur)) = LOWER(TRIM(:namaDebitur))")
     suspend fun deleteHistoryByDebitur(namaDebitur: String)
+
+    @Query("DELETE FROM history_setoran")
+    suspend fun clearAllHistory()
 }
