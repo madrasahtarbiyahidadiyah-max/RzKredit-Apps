@@ -21,12 +21,15 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # Langkah baru: Membuat file gradlew secara otomatis menggunakan Gradle bawaan server
     - name: Generate Gradle Wrapper
       run: gradle wrapper
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
+
+    # Langkah baru: Membuat file debug.keystore secara otomatis
+    - name: Generate Debug Keystore
+      run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug
@@ -35,4 +38,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        # Menggunakan wildcard (*) untuk berjaga-jaga jika nama file apk sedikit berbeda
+        path: app/build/outputs/apk/debug/*.apk
