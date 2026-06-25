@@ -27,16 +27,15 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # Langkah baru: Membuat file debug.keystore secara otomatis
     - name: Generate Debug Keystore
       run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
 
+    # Langkah yang diubah: Menambahkan perintah agar Gradle tidak mencari layar (headless)
     - name: Build Debug APK
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleDebug --no-daemon -Djava.awt.headless=true
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        # Menggunakan wildcard (*) untuk berjaga-jaga jika nama file apk sedikit berbeda
         path: app/build/outputs/apk/debug/*.apk
