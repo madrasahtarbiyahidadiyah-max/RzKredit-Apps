@@ -44,6 +44,20 @@ class PeminjamViewModel(application: Application) : AndroidViewModel(application
         }
     )
 
+    var webAppUrl by mutableStateOf(
+        let {
+            val saved = sharedPrefs.getString("web_app_url", "")
+            val oldUrl = "https://script.google.com/macros/s/AKfycbxMmB8p94AM7QSgVbgpMidnhFv7cDXcEJYmIb_gWfzyhlEJhQjGgq-wzua_1B4SUMH-/exec"
+            val defaultUrl = "https://script.google.com/macros/s/AKfycbwy4EZaYpJQ2p-FYK7T-F2rUZxTLtKs0pu5Cg9Jg4eHcOblv6M_vJJw-Y7-klw4PNoU/exec"
+            if (saved.isNullOrBlank() || !saved.startsWith("http") || saved == oldUrl) {
+                sharedPrefs.edit().putString("web_app_url", defaultUrl).apply()
+                defaultUrl
+            } else {
+                saved
+            }
+        }
+    )
+
     var isSyncing by mutableStateOf(false)
         private set
 
@@ -54,10 +68,12 @@ class PeminjamViewModel(application: Application) : AndroidViewModel(application
         repository = PeminjamRepository(db.peminjamDao(), db.historySetoranDao())
     }
 
-    fun saveSyncPrefs(sheetUrl: String) {
+    fun saveSyncPrefs(sheetUrl: String, scriptUrl: String) {
         spreadsheetUrl = sheetUrl.trim()
+        webAppUrl = scriptUrl.trim()
         sharedPrefs.edit().apply {
             putString("spreadsheet_url", spreadsheetUrl)
+            putString("web_app_url", webAppUrl)
             apply()
         }
         showToast("💾 Konfigurasi Cloud berhasil disimpan.")
@@ -165,7 +181,7 @@ class PeminjamViewModel(application: Application) : AndroidViewModel(application
             return
         }
         viewModelScope.launch {
-            val result = repository.simpanPeminjam(regNama, regNominal, regTenor)
+            val result = repository.simpanPeminjam(regNama, regNominal, regTenor, webAppUrl)
             result.onSuccess { msg ->
                 showToast(msg)
                 regNama = ""
@@ -204,7 +220,7 @@ class PeminjamViewModel(application: Application) : AndroidViewModel(application
             return
         }
         viewModelScope.launch {
-            val result = repository.simpanSetoran(setorNama, nominalSetor)
+            val result = repository.simpanSetoran(setorNama, nominalSetor, webAppUrl)
             result.onSuccess { msg ->
                 showToast(msg)
                 setorNama = ""
@@ -233,7 +249,7 @@ class PeminjamViewModel(application: Application) : AndroidViewModel(application
         if (deleteSandiInput == "rzkarim123") {
             val target = deleteTargetNama
             viewModelScope.launch {
-                val result = repository.hapusPeminjam(target)
+                val result = repository.hapusPeminjam(target, webAppUrl)
                 result.onSuccess { msg ->
                     showToast(msg)
                     tutupDeleteConfirm()

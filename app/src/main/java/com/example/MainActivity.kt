@@ -226,9 +226,10 @@ fun RzKreditApp(
         if (viewModel.showSyncSettings) {
             CloudSyncSettingsDialog(
                 currentSpreadsheetUrl = viewModel.spreadsheetUrl,
+                currentWebAppUrl = viewModel.webAppUrl,
                 onDismiss = { viewModel.showSyncSettings = false },
-                onSave = { sheetUrl ->
-                    viewModel.saveSyncPrefs(sheetUrl)
+                onSave = { sheetUrl, scriptUrl ->
+                    viewModel.saveSyncPrefs(sheetUrl, scriptUrl)
                     viewModel.showSyncSettings = false
                 },
                 darkTheme = darkTheme
@@ -354,7 +355,11 @@ fun LoginScreen(
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = onTogglePassword) {
-                                Text(if (isPasswordVisible) "👁️" else "🙈", fontSize = 16.sp)
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isPasswordVisible) "Sembunyikan Sandi" else "Tampilkan Sandi",
+                                    tint = textSub
+                                )
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
@@ -1887,11 +1892,13 @@ fun generateAndSaveReceiptBitmap(context: Context, peminjam: Peminjam, systemDat
 @Composable
 fun CloudSyncSettingsDialog(
     currentSpreadsheetUrl: String,
+    currentWebAppUrl: String,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
+    onSave: (String, String) -> Unit,
     darkTheme: Boolean
 ) {
     var spreadsheetInput by remember { mutableStateOf(currentSpreadsheetUrl) }
+    var webAppInput by remember { mutableStateOf(currentWebAppUrl) }
     var showInstructions by remember { mutableStateOf(true) }
     
     val context = LocalContext.current
@@ -1941,7 +1948,7 @@ fun CloudSyncSettingsDialog(
                 Spacer(modifier = Modifier.height(6.dp))
                 
                 Text(
-                    text = "Tautkan aplikasi RzKredit Anda secara langsung ke Google Sheets untuk mengunduh/menyinkronkan data debitur.",
+                    text = "Tautkan aplikasi RzKredit Anda secara langsung ke Google Sheets untuk mengunduh, mengunggah, dan menyinkronkan data debitur & riwayat pembayaran.",
                     fontSize = 12.sp,
                     color = textSub
                 )
@@ -1991,6 +1998,31 @@ fun CloudSyncSettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(18.dp))
+
+                // Apps Script Web App URL Field
+                Text(
+                    text = "⚙️ WEB APP URL (GOOGLE APPS SCRIPT)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSub
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = webAppInput,
+                    onValueChange = { webAppInput = it },
+                    placeholder = { Text("https://script.google.com/macros/s/.../exec", color = textSub.copy(alpha = 0.5f)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("web_app_url_input"),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = textMain),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RzBlue,
+                        unfocusedBorderColor = borderCol
+                    )
+                )
+                
+                Spacer(modifier = Modifier.height(18.dp))
                 
                 // Expandable Instruction Section
                 Card(
@@ -2019,17 +2051,31 @@ fun CloudSyncSettingsDialog(
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = "Langkah-langkah:\n" +
-                                        "1. Buat sheet baru di Google Sheets Anda bernama \"Peminjam\".\n" +
-                                        "2. Buat kolom baris pertama (Header) persis dengan urutan berikut:\n" +
-                                        "   Nama Lengkap, Nominal Peminjam, Tenor (Bulan), Angsuran Per Bulan, Total Tagihan, Total Setoran, Sisa Tagihan, Sisa Tenor\n" +
-                                        "3. Klik tombol 'Share' di kanan atas spreadsheet Anda.\n" +
-                                        "4. Ubah General Access menjadi 'Anyone with the link' (Siapa saja yang memiliki link) sebagai 'Viewer' (Pengakses lihat saja).\n" +
-                                        "5. Salin link spreadsheet tersebut dan tempelkan di kolom input di atas.\n" +
-                                        "6. Tekan tombol Sinkronkan (icon awan ☁️) di halaman utama untuk mengunduh data langsung ke aplikasi.",
+                                        "1. Pastikan Spreadsheet Anda memiliki dua sheet bernama \"Peminjam\" dan \"HistorySetoran\".\n" +
+                                        "2. Masuk ke menu Extensions > Apps Script pada Spreadsheet Anda.\n" +
+                                        "3. Hapus kode bawaan, lalu salin dan tempel kode Apps Script RzKredit (tombol salin di bawah).\n" +
+                                        "4. Klik 'Deploy' > 'New deployment' > Pilih tipe 'Web App'.\n" +
+                                        "5. Di bagian 'Execute as', pilih 'Me' (email Anda). Di bagian 'Who has access', pilih 'Anyone'.\n" +
+                                        "6. Klik Deploy, salin tautan Web App yang diberikan, lalu paste ke kotak WEB APP URL di atas.\n" +
+                                        "7. Ubah General Access Spreadsheet Anda menjadi 'Anyone with the link' (Viewer) agar data bisa diunduh oleh aplikasi.",
                                 fontSize = 11.sp,
                                 color = textSub,
                                 lineHeight = 16.sp
                             )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clipData = android.content.ClipData.newPlainText("RzKredit Apps Script", getAppsScriptCode())
+                                    clipboardManager.setPrimaryClip(clipData)
+                                    Toast.makeText(context, "📋 Kode Apps Script berhasil disalin!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RzBlue.copy(alpha = 0.15f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("📋 Salin Kode Apps Script Khusus", color = RzBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -2051,7 +2097,7 @@ fun CloudSyncSettingsDialog(
                         Text("Batal", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Button(
-                        onClick = { onSave(spreadsheetInput) },
+                        onClick = { onSave(spreadsheetInput, webAppInput) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
@@ -2064,4 +2110,80 @@ fun CloudSyncSettingsDialog(
             }
         }
     }
+}
+
+private fun getAppsScriptCode(): String {
+    return """
+function doGet(e) {
+  var action = e.parameter.action;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Peminjam");
+  if (!sheet) {
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Peminjam");
+    sheet.appendRow(["Nama Lengkap", "Nominal Peminjam", "Tenor (Bulan)", "Angsuran Per Bulan", "Total Tagihan", "Total Setoran", "Sisa Tagihan", "Sisa Tenor"]);
+  }
+  
+  if (action === "read") {
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var list = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var item = {};
+      for (var j = 0; j < headers.length; j++) {
+        item[headers[j]] = row[j];
+      }
+      list.push(item);
+    }
+    return ContentService.createTextOutput(JSON.stringify(list)).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput("Invalid Action");
+}
+
+function doPost(e) {
+  var params = JSON.parse(e.postData.contents);
+  var action = params.action;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Peminjam");
+  if (!sheet) {
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Peminjam");
+    sheet.appendRow(["Nama Lengkap", "Nominal Peminjam", "Tenor (Bulan)", "Angsuran Per Bulan", "Total Tagihan", "Total Setoran", "Sisa Tagihan", "Sisa Tenor"]);
+  }
+  
+  if (action === "add") {
+    sheet.appendRow([params.nama, params.nominal, params.tenor, params.angsuran, params.totalTagihan, params.terbayar, params.sisaTagihan, params.sisaTenor]);
+    return ContentService.createTextOutput("Success Add");
+  } else if (action === "setoran") {
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0].toString().toLowerCase() === params.nama.toString().toLowerCase()) {
+        sheet.getRange(i + 1, 6).setValue(params.terbayar);
+        sheet.getRange(i + 1, 7).setValue(params.sisaTagihan);
+        sheet.getRange(i + 1, 8).setValue(params.sisaTenor);
+        
+        // Append to HistorySetoran sheet
+        var histSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("HistorySetoran");
+        if (!histSheet) {
+          histSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("HistorySetoran");
+          histSheet.appendRow(["Tanggal", "Nama Peminjam", "Jumlah Setoran"]);
+        }
+        
+        var formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "M/d/yyyy HH:mm:ss");
+        histSheet.appendRow([formattedDate, params.nama, params.jumlahSetoran]);
+        
+        return ContentService.createTextOutput("Success Setoran");
+      }
+    }
+    return ContentService.createTextOutput("Not Found");
+  } else if (action === "delete") {
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0].toString().toLowerCase() === params.nama.toString().toLowerCase()) {
+        sheet.deleteRow(i + 1);
+        return ContentService.createTextOutput("Success Delete");
+      }
+    }
+    return ContentService.createTextOutput("Not Found");
+  }
+  return ContentService.createTextOutput("Invalid Action");
+}
+    """.trimIndent()
 }

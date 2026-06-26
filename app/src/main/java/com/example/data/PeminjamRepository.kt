@@ -152,6 +152,34 @@ class PeminjamRepository(
         return System.currentTimeMillis()
     }
 
+    private suspend fun postToAppsScript(webAppUrl: String, jsonPayload: String): Result<String> = withContext(Dispatchers.IO) {
+        if (webAppUrl.trim().isEmpty()) return@withContext Result.success("Offline Mode")
+        try {
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            
+            val client = OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
+                
+            val request = Request.Builder()
+                .url(webAppUrl)
+                .post(jsonPayload.toRequestBody(mediaType))
+                .build()
+                
+            client.newCall(request).execute().use { response ->
+                val responseBodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    Result.success(responseBodyStr.trim())
+                } else {
+                    Result.failure(Exception("HTTP error ${response.code}: $responseBodyStr"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun extractSpreadsheetId(url: String): String? {
         val pattern = Pattern.compile("/d/([a-zA-Z0-9-_]+)")
         val matcher = pattern.matcher(url)
@@ -216,7 +244,7 @@ class PeminjamRepository(
         return result
     }
 
-    suspend fun simpanPeminjam(nama: String, nominal: Double, tenor: Int): Result<String> {
+    suspend fun simpanPeminjam(nama: String, nominal: Double, tenor: Int, webAppUrl: String = ""): Result<String> {
         val trimmedNama = nama.trim()
         if (trimmedNama.isEmpty()) return Result.failure(Exception("Nama debitur wajib diisi!"))
         
@@ -239,11 +267,42 @@ class PeminjamRepository(
             sisaTenor = tenor
         )
 
+        // Cloud sync check
+        if (webAppUrl.trim().isNotEmpty()) {
+            val payload = """
+                {
+                    "action": "add",
+                    "nama": "$trimmedNama",
+                    "nominal": $nominal,
+                    "tenor": $tenor,
+                    "angsuran": $angsuran,
+                    "totalTagihan": $totalTagihan,
+                    "terbayar": 0.0,
+                    "sisaTagihan": $totalTagihan,
+                    "sisaTenor": $tenor
+                }
+            """.trimIndent()
+            val syncRes = postToAppsScript(webAppUrl, payload)
+            if (syncRes.isFailure) {
+                return Result.failure(Exception("Gagal Sinkronisasi Cloud: ${syncRes.exceptionOrNull()?.message}"))
+            }
+            val responseText = syncRes.getOrNull() ?: ""
+            if (responseText != "Success Add") {
+                if (responseText.contains("<!DOCTYPE html") || responseText.contains("<html")) {
+                    return Result.failure(Exception("Gagal: Google Sheets meminta login / memblokir akses. Pastikan di Google Apps Script Anda mengklik 'Deploy' -> 'New Deployment', pilih tipe 'Web App', set 'Execute as: Me' (email Anda), dan 'Who has access: Anyone' (Siapa saja)."))
+                } else if (responseText.contains("Not Found")) {
+                    return Result.failure(Exception("Gagal: Data tidak ditemukan di Google Sheets."))
+                } else {
+                    return Result.failure(Exception("Gagal Sinkronisasi: Google Sheets mengembalikan respon tidak valid: '$responseText'. Harap deploy ulang Web App Anda sesuai panduan."))
+                }
+            }
+        }
+
         peminjamDao.insertPeminjam(peminjam)
-        return Result.success("✔ Kontrak Sudah Disimpan")
+        return Result.success("✔ Kontrak Sudah Disimpan & Sinkron ke Spreadsheet")
     }
 
-    suspend fun simpanSetoran(nama: String, jumlahSetoran: Double): Result<String> {
+    suspend fun simpanSetoran(nama: String, jumlahSetoran: Double, webAppUrl: String = ""): Result<String> {
         val trimmedNama = nama.trim()
         val peminjam = peminjamDao.getPeminjamByNama(trimmedNama)
             ?: return Result.failure(Exception("Nasabah tidak ditemukan."))
@@ -262,6 +321,34 @@ class PeminjamRepository(
             sisaTenor = newSisaTenor
         )
 
+        // Cloud sync check
+        if (webAppUrl.trim().isNotEmpty()) {
+            val payload = """
+                {
+                    "action": "setoran",
+                    "nama": "$trimmedNama",
+                    "terbayar": $newTerbayar,
+                    "sisaTagihan": $newSisaTagihan,
+                    "sisaTenor": $newSisaTenor,
+                    "jumlahSetoran": $jumlahSetoran
+                }
+            """.trimIndent()
+            val syncRes = postToAppsScript(webAppUrl, payload)
+            if (syncRes.isFailure) {
+                return Result.failure(Exception("Gagal Sinkronisasi Cloud: ${syncRes.exceptionOrNull()?.message}"))
+            }
+            val responseText = syncRes.getOrNull() ?: ""
+            if (responseText != "Success Setoran") {
+                if (responseText.contains("<!DOCTYPE html") || responseText.contains("<html")) {
+                    return Result.failure(Exception("Gagal: Google Sheets meminta login / memblokir akses. Pastikan di Google Apps Script Anda mengklik 'Deploy' -> 'New Deployment', pilih tipe 'Web App', set 'Execute as: Me' (email Anda), dan 'Who has access: Anyone' (Siapa saja)."))
+                } else if (responseText.contains("Not Found")) {
+                    return Result.failure(Exception("Gagal: Nama nasabah '$trimmedNama' tidak ditemukan di lembar spreadsheet 'Peminjam'. Pastikan nama sama persis."))
+                } else {
+                    return Result.failure(Exception("Gagal Sinkronisasi: Google Sheets mengembalikan respon tidak valid: '$responseText'. Harap deploy ulang Web App Anda sesuai panduan."))
+                }
+            }
+        }
+
         peminjamDao.updatePeminjam(updatedPeminjam)
 
         val history = HistorySetoran(
@@ -270,14 +357,38 @@ class PeminjamRepository(
         )
         historySetoranDao.insertHistory(history)
 
-        return Result.success("💰 Terimakasih, Uang Sudah Masuk")
+        return Result.success("💰 Terimakasih, Uang Sudah Masuk & Sinkron ke Spreadsheet")
     }
 
-    suspend fun hapusPeminjam(nama: String): Result<String> {
+    suspend fun hapusPeminjam(nama: String, webAppUrl: String = ""): Result<String> {
+        // Cloud sync check
+        if (webAppUrl.trim().isNotEmpty()) {
+            val payload = """
+                {
+                    "action": "delete",
+                    "nama": "$nama"
+                }
+            """.trimIndent()
+            val syncRes = postToAppsScript(webAppUrl, payload)
+            if (syncRes.isFailure) {
+                return Result.failure(Exception("Gagal Sinkronisasi Cloud: ${syncRes.exceptionOrNull()?.message}"))
+            }
+            val responseText = syncRes.getOrNull() ?: ""
+            if (responseText != "Success Delete") {
+                if (responseText.contains("<!DOCTYPE html") || responseText.contains("<html")) {
+                    return Result.failure(Exception("Gagal: Google Sheets meminta login / memblokir akses. Pastikan di Google Apps Script Anda mengklik 'Deploy' -> 'New Deployment', pilih tipe 'Web App', set 'Execute as: Me' (email Anda), dan 'Who has access: Anyone' (Siapa saja)."))
+                } else if (responseText.contains("Not Found")) {
+                    return Result.failure(Exception("Gagal: Nama nasabah '$nama' tidak ditemukan di lembar spreadsheet 'Peminjam'."))
+                } else {
+                    return Result.failure(Exception("Gagal Sinkronisasi: Google Sheets mengembalikan respon tidak valid: '$responseText'. Harap deploy ulang Web App Anda sesuai panduan."))
+                }
+            }
+        }
+
         val count = peminjamDao.deletePeminjam(nama)
         return if (count > 0) {
             historySetoranDao.deleteHistoryByDebitur(nama)
-            Result.success("Data debitur '$nama' berhasil dilenyapkan dari lokal.")
+            Result.success("Data debitur '$nama' berhasil dilenyapkan dari lokal & cloud.")
         } else {
             Result.failure(Exception("Gagal: Nasabah tidak ditemukan di database lokal."))
         }
