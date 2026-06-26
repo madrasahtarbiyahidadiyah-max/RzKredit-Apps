@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Circle border -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#2196F3"
+        android:strokeWidth="1.5"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10s10,-4.48 10,-10S17.52,2 12,2z" />
+    <!-- Styled Letter R -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M9,7h3.5c1.38,0 2.5,1.12 2.5,2.5S13.88,12 12.5,12H10v6H9V7zm1,1v3h2.5c0.83,0 1.5,-0.67 1.5,-1.5S13.33,8 12.5,8H10z" />
+    <!-- Financial Growth Arrow -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M14,13.5l1.5,1.5l3.5,-3.5l1,1l-4.5,4.5l-2.5,-2.5z" />
+</vector>

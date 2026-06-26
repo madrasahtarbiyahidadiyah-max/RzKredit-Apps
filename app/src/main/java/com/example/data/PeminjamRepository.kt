@@ -44,8 +44,8 @@ class PeminjamRepository(
                 .followSslRedirects(true)
                 .build()
 
-            // 1. Fetch Peminjam Sheet
-            val urlPeminjam = "https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:csv&sheet=Peminjam"
+            // 1. Fetch Peminjam Sheet (using cache buster with current timestamp)
+            val urlPeminjam = "https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:csv&sheet=Peminjam&t=${System.currentTimeMillis()}"
             val requestPeminjam = Request.Builder().url(urlPeminjam).build()
             
             val peminjamList = client.newCall(requestPeminjam).execute().use { response ->
@@ -53,15 +53,17 @@ class PeminjamRepository(
                     throw Exception("Gagal mengunduh sheet Peminjam: HTTP ${response.code}")
                 }
                 val body = response.body?.string() ?: ""
+                if (body.contains("<html") || body.contains("<!DOCTYPE")) {
+                    throw Exception("Gagal: Respon dari Google Sheets tidak valid. Pastikan Spreadsheet dapat diakses oleh siapa saja yang memiliki link (Anyone with the link as Viewer).")
+                }
+                if (!body.contains("Nama Lengkap", ignoreCase = true)) {
+                    throw Exception("Format sheet 'Peminjam' tidak sesuai atau tidak ditemukan.")
+                }
                 parseCsv(body)
             }
 
-            if (peminjamList.isEmpty()) {
-                return@withContext Result.failure(Exception("Data 'Peminjam' kosong atau format tidak sesuai di Spreadsheet."))
-            }
-
-            // 2. Fetch HistorySetoran Sheet
-            val urlHistory = "https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:csv&sheet=HistorySetoran"
+            // 2. Fetch HistorySetoran Sheet (using cache buster with current timestamp)
+            val urlHistory = "https://docs.google.com/spreadsheets/d/$sheetId/gviz/tq?tqx=out:csv&sheet=HistorySetoran&t=${System.currentTimeMillis()}"
             val requestHistory = Request.Builder().url(urlHistory).build()
             
             val historyList = try {
@@ -78,16 +80,38 @@ class PeminjamRepository(
                 emptyList()
             }
 
+            // Recalculate each Peminjam's payment status based on HistorySetoran to allow direct deletions/edits in sheets
+            val updatedPeminjamList = peminjamList.map { p ->
+                val historyForP = historyList.filter { h -> h.namaDebitur.trim().lowercase() == p.nama.trim().lowercase() }
+                val totalTerbayar = historyForP.sumOf { it.jumlahSetoran }
+                val sisaTagihan = (p.totalTagihan - totalTerbayar).coerceAtLeast(0.0)
+                
+                // Recalculate sisa tenor based on how many payments are >= angsuran
+                val paidTenor = historyForP.count { it.jumlahSetoran >= p.angsuran }
+                val sisaTenor = (p.tenor - paidTenor).coerceAtLeast(0)
+                
+                p.copy(
+                    terbayar = totalTerbayar,
+                    sisaTagihan = sisaTagihan,
+                    sisaTenor = sisaTenor
+                )
+            }
+
             // 3. Clear database and update with fresh data
             peminjamDao.clearAllPeminjam()
-            peminjamList.forEach { peminjamDao.insertPeminjam(it) }
+            updatedPeminjamList.forEach { peminjamDao.insertPeminjam(it) }
 
             historySetoranDao.clearAllHistory()
             historyList.forEach { historySetoranDao.insertHistory(it) }
             
-            var msg = "✔ Sinkronisasi Berhasil! ${peminjamList.size} debitur disinkronkan."
-            if (historyList.isNotEmpty()) {
-                msg += " Serta ${historyList.size} riwayat setoran diunduh."
+            val msg = if (updatedPeminjamList.isEmpty()) {
+                "✔ Sinkronisasi Berhasil! Database lokal dikosongkan karena Spreadsheet kosong."
+            } else {
+                var info = "✔ Sinkronisasi Berhasil! ${updatedPeminjamList.size} debitur disinkronkan."
+                if (historyList.isNotEmpty()) {
+                    info += " Serta ${historyList.size} riwayat setoran diunduh."
+                }
+                info
             }
             Result.success(msg)
         } catch (e: Exception) {
