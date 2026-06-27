@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PeminjamDao {
-    @Query("SELECT * FROM peminjam ORDER BY nama ASC")
+    @Query("SELECT * FROM peminjam ORDER BY rowOrder DESC")
     fun getAllPeminjamFlow(): Flow<List<Peminjam>>
 
-    @Query("SELECT * FROM peminjam ORDER BY nama ASC")
+    @Query("SELECT * FROM peminjam ORDER BY rowOrder DESC")
     suspend fun getAllPeminjam(): List<Peminjam>
 
     @Query("SELECT * FROM peminjam WHERE LOWER(TRIM(nama)) = LOWER(TRIM(:nama)) LIMIT 1")

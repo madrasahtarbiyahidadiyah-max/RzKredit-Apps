@@ -12,7 +12,8 @@ data class Peminjam(
     val totalTagihan: Double, // Total Tagihan Awal
     val terbayar: Double,     // Terbayar
     val sisaTagihan: Double,  // Sisa Tagihan
-    val sisaTenor: Int        // Sisa Tenor
+    val sisaTenor: Int,       // Sisa Tenor
+    val rowOrder: Int = 0     // Row Order in Google Sheet (newer rows have higher order)
 )
 
 @Entity(tableName = "history_setoran")

@@ -239,7 +239,8 @@ class PeminjamRepository(
                         totalTagihan = totalTagihan,
                         terbayar = terbayar,
                         sisaTagihan = sisaTagihan,
-                        sisaTenor = sisaTenor
+                        sisaTenor = sisaTenor,
+                        rowOrder = i
                     )
                 )
             }
@@ -280,6 +281,12 @@ class PeminjamRepository(
         val angsuran = hitungAngsuran(nominal)
         val totalTagihan = angsuran * tenor
 
+        val maxOrder = try {
+            peminjamDao.getAllPeminjam().maxOfOrNull { it.rowOrder } ?: 0
+        } catch (e: Exception) {
+            0
+        }
+
         val peminjam = Peminjam(
             nama = trimmedNama,
             nominal = nominal,
@@ -288,7 +295,8 @@ class PeminjamRepository(
             totalTagihan = totalTagihan,
             terbayar = 0.0,
             sisaTagihan = totalTagihan,
-            sisaTenor = tenor
+            sisaTenor = tenor,
+            rowOrder = maxOrder + 1
         )
 
         // Cloud sync check

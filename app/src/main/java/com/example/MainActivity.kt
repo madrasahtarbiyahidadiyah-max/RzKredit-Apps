@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -277,28 +281,28 @@ fun LoginScreen(
                     .padding(horizontal = 24.dp, vertical = 36.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Official Logo Frame
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data("https://i.postimg.cc/sfNDS3Mn/Whats-App-Image-2026-06-02-at-10-33-41.jpg")
-                        .crossfade(true)
-                        .build(),
+                // Official Logo Frame (loaded locally for instant offline loading)
+                Image(
+                    painter = painterResource(id = R.drawable.logo_rzkredit),
                     contentDescription = "RzKredit Logo",
-                    placeholder = painterResource(android.R.drawable.ic_dialog_info),
-                    fallback = painterResource(android.R.drawable.ic_dialog_info),
                     modifier = Modifier
-                        .size(90.dp)
+                        .size(100.dp)
                         .clip(CircleShape)
-                        .border(3.dp, RzBlue, CircleShape)
+                        .border(3.dp, RzAmber, CircleShape)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
-                    text = "Login RzKredit",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = textMain,
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Black, color = textMain)) {
+                            append("RZK")
+                        }
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = RzAmber)) {
+                            append("redit")
+                        }
+                    },
+                    fontSize = 28.sp,
                     textAlign = TextAlign.Center
                 )
 
@@ -452,19 +456,14 @@ fun DashboardScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Logo loaded via Coil
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data("https://i.postimg.cc/sfNDS3Mn/Whats-App-Image-2026-06-02-at-10-33-41.jpg")
-                            .crossfade(true)
-                            .build(),
+                    // Logo loaded locally for instant offline loading
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_rzkredit),
                         contentDescription = "RzKredit Logo",
-                        placeholder = painterResource(android.R.drawable.ic_dialog_info),
-                        fallback = painterResource(android.R.drawable.ic_dialog_info),
                         modifier = Modifier
                             .size(45.dp)
                             .clip(CircleShape)
-                            .border(2.dp, RzBlue, CircleShape)
+                            .border(2.dp, RzAmber, CircleShape)
                     )
 
                     Spacer(modifier = Modifier.width(12.dp))
@@ -472,12 +471,17 @@ fun DashboardScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "RzKredit",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Black,
-                                color = textMain
+                                text = buildAnnotatedString {
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Black, color = textMain)) {
+                                        append("RZK")
+                                    }
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = RzAmber)) {
+                                        append("redit")
+                                    }
+                                },
+                                fontSize = 18.sp
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Mobile",
                                 fontSize = 16.sp,
